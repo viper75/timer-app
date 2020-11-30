@@ -2,6 +2,7 @@ package org.viper75.timer_app.services;
 
 import android.annotation.SuppressLint;
 import android.app.Notification;
+import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
@@ -45,15 +46,16 @@ public class TimerService extends Service {
                 timerIntent.setAction(TIMER_INTENT_ACTION);
 
                 if (isRunning) {
-                    timeRemaining--;
 
-                    showNotificationUpdate();
+                    if (timeRemaining > 0) {
+                        timeRemaining--;
 
-                    if (timeRemaining >= 0) {
-                        timerIntent.putExtra(TIMER_VALUE, timeRemaining);
-                        sendBroadcast(timerIntent);
+                        showNotificationUpdate();
                     }
                 }
+
+                timerIntent.putExtra(TIMER_VALUE, timeRemaining);
+                sendBroadcast(timerIntent);
 
                 handler.postDelayed( this, 1000);
             }
@@ -69,19 +71,31 @@ public class TimerService extends Service {
     }
 
     public void startTimer() {
-        isRunning = true;
+        if (isRunning) {
+            isRunning = false;
+        } else {
+            isRunning = true;
+        }
     }
 
     public void stopTimer() {
         isRunning = false;
+        resetTimer();
+        NotificationManager manager = getApplicationContext().getSystemService(NotificationManager.class);
+        manager.cancelAll();
     }
 
+    private void resetTimer() {
+        timeRemaining = 60;
+    }
 
     private void showNotificationUpdate() {
         Intent notificationIntent = new Intent(this, Main.class);
+        notificationIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         notificationIntent.putExtra(TIMER_VALUE, timeRemaining);
+
         PendingIntent pendingIntent = PendingIntent.getActivity(this, NOTIFICATION_REQUEST_CODE,
-                notificationIntent, PendingIntent.FLAG_ONE_SHOT);
+                notificationIntent, PendingIntent.FLAG_UPDATE_CURRENT);
 
         Notification.Builder builder = new Notification.Builder(this)
                 .setSmallIcon(R.drawable.ic_timer)

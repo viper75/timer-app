@@ -1,8 +1,10 @@
 package org.viper75.timer_app.views;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 
 import android.annotation.SuppressLint;
+import android.app.ActivityManager;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
@@ -11,10 +13,12 @@ import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.util.Log;
 import android.widget.ProgressBar;
 
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
+import org.viper75.timer_app.R;
 import org.viper75.timer_app.databinding.MainLayoutBinding;
 import org.viper75.timer_app.services.TimerService;
 import org.viper75.timer_app.utils.ProgressBarAnimation;
@@ -28,11 +32,14 @@ public class Main extends AppCompatActivity {
 
     private MainLayoutBinding mMainLayoutBinding;
     private ProgressBar mTimerProgressBar;
+    private FloatingActionButton mStartTimerBtn;
     private BroadcastReceiver mTimerBroadcastReceiver;
     private Intent timerServiceIntent;
 
     private TimerService mTimerService;
     private boolean mTimerServiceBound = false;
+
+    private boolean isRunning = false;
 
     private ServiceConnection mTimerServiceConnection = new ServiceConnection() {
         @Override
@@ -53,6 +60,27 @@ public class Main extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        onNewIntent(getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+
+        Bundle extras = intent.getExtras();
+        if (extras != null) {
+            if (extras.containsKey(TIMER_VALUE)) {
+                Log.i(Main.class.getSimpleName(), "" + extras.getInt(TIMER_VALUE));
+            }
+        }
+
+        timerServiceIntent = new Intent(this, TimerService.class);
+        timerServiceIntent.putExtra(TIMER_VALUE, 60);
+
+        if (!isServiceRunning(TimerService.class)) {
+            startService(timerServiceIntent);
+        }
+
         mMainLayoutBinding = MainLayoutBinding.inflate(getLayoutInflater());
         setContentView(mMainLayoutBinding.getRoot());
 
@@ -63,10 +91,6 @@ public class Main extends AppCompatActivity {
                 setTimerText(timeRemaining);
             }
         };
-
-        timerServiceIntent = new Intent(this, TimerService.class);
-        timerServiceIntent.putExtra(TIMER_VALUE, 60);
-        startService(timerServiceIntent);
 
         initViews();
     }
@@ -94,8 +118,8 @@ public class Main extends AppCompatActivity {
     }
 
     private void initViews() {
-        FloatingActionButton startTimerBtn = mMainLayoutBinding.startTimer;
-        startTimerBtn.setOnClickListener(v -> startTimer());
+        mStartTimerBtn = mMainLayoutBinding.startTimer;
+        mStartTimerBtn.setOnClickListener(v -> startTimer());
 
         mMainLayoutBinding.stopTimer.setOnClickListener(v -> stopTimer());
 
@@ -104,10 +128,22 @@ public class Main extends AppCompatActivity {
     }
 
     private void startTimer() {
+        isRunning = !isRunning;
+
+        if (isRunning) {
+            mStartTimerBtn.setImageDrawable(ContextCompat.getDrawable(this, R.drawable.ic_pause));
+        } else {
+            mStartTimerBtn.setImageDrawable(ContextCompat.getDrawable(this, R.drawable.ic_play_arrow));
+        }
+
         mTimerService.startTimer();
     }
 
     private void stopTimer() {
+        if (isRunning) {
+            isRunning = false;
+            mStartTimerBtn.setImageDrawable(ContextCompat.getDrawable(this, R.drawable.ic_play_arrow));
+        }
         mTimerService.stopTimer();
     }
 
@@ -127,5 +163,15 @@ public class Main extends AppCompatActivity {
         String time = String.format("%02d:%02d:%02d", hours, minutes, seconds);
 
         mMainLayoutBinding.timerText.setText(time);
+    }
+
+    private boolean isServiceRunning(Class<?> serviceClass) {
+        ActivityManager activityManager = getSystemService(ActivityManager.class);
+        for (ActivityManager.RunningServiceInfo service : activityManager.getRunningServices(Integer.MAX_VALUE)) {
+            if (serviceClass.getName().equals(service.service.getClassName())) {
+                return true;
+            }
+        }
+        return false;
     }
 }
